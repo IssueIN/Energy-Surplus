@@ -111,7 +111,6 @@ def main(start_time, end_time, output_path):
         'NE': '10YNL----------L',
     }
 
-    # Transform start_time and end_time to the format required by the API: YYYYMMDDHHMM
     start_time = start_time.strftime('%Y%m%d%H%M')
     end_time = end_time.strftime('%Y%m%d%H%M')
 

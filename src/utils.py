@@ -122,16 +122,28 @@ def perform_get_request(base_url, params):
         return response.text
     else:
         return response.content
+    
 
-def aggregate_to_hourly(df):
+def aggregate_to_hourly(df, data_type):
+    group_columns = ['Country', 'UnitName'] if data_type == 'load' else ['Country', 'UnitName', 'PsrType']
+    
     df.set_index('StartTime', inplace=True)
-    df_resampled = df.resample('60T').agg({'Load': 'sum'})
+
+    if data_type == 'load':
+        df_resampled = df.groupby(group_columns).resample('60T').agg({'Load': 'sum'}).reset_index(level=group_columns)
+    elif data_type == 'gen':
+        df_resampled = df.groupby(group_columns).resample('60T').agg({'quantity': 'sum'}).reset_index(level=group_columns)
 
     df_resampled.reset_index(inplace=True)
-
-    df_resampled['EndTime'] = df_resampled['StartTime'] + timedelta(minutes=60)
-
     return df_resampled
+
+def sum_across_psr_types(gen_dataframes):
+    combined_gen_df = pd.concat(gen_dataframes, ignore_index=True)
+
+    aggregated_gen_df = combined_gen_df.groupby(['Country', 'UnitName', 'StartTime']).agg({'quantity': 'sum'}).reset_index()
+
+    return aggregated_gen_df
+
 
 def process_file(filename, folder_path):
     data_type = filename.split('_')[0].lower()
@@ -145,45 +157,68 @@ def process_file(filename, folder_path):
     filepath = os.path.join(folder_path, filename)
     df = pd.read_csv(filepath)
 
-    df['StartTime'] = pd.to_datetime(df['StartTime'], format='ISO8601')
-    df['EndTime'] = pd.to_datetime(df['EndTime'], format='ISO8601')
+    df['StartTime'] = pd.to_datetime(df['StartTime'], format='%Y-%m-%dT%H:%M+00:00Z')
+    df['EndTime'] = pd.to_datetime(df['EndTime'], format='%Y-%m-%dT%H:%M+00:00Z')
+
     df['Country'] = country_code
     df = df.drop(columns=['AreaID'])
 
-    df = aggregate_to_hourly(df)
+    df = aggregate_to_hourly(df, data_type)
     return df
 
-def process_all_files_in_folder(folder_path):
-    results = []
-    for file in os.listdir(folder_path):
-        if file.endswith('.csv'):
-            try:
-                aggregated_data = process_file(file, folder_path)
-                results.append(aggregated_data)
-            except ValueError as e:
-                print(f"Error processing {file}: {e}")
-    return results
+# def process_all_files_in_folder(folder_path, output_file_path_load, output_file_path_gen):
+#     load_dataframes = []
+#     gen_dataframes = []
+#     Green_psrTypes = ["B01", "B09", "B10", "B11", "B12", "B13", "B15", "B16", "B18", "B19"]
 
-def process_all_files_in_folder(folder_path, output_file_path):
+#     for file in os.listdir(folder_path):
+#         if file.endswith('.csv'):
+#             data_type = file.split('_')[0].lower()
+#             try:
+#                 aggregated_data = process_file(file, folder_path)
+#                 if data_type == 'load':
+#                     load_dataframes.append(aggregated_data)
+#                 elif data_type == 'gen' and file.split('_')[-1].lower() in Green_psrTypes:
+#                     gen_dataframes.append(aggregated_data)
+#             except ValueError as e:
+#                 print(f"Error processing {file}: {e}")
+
+#     if load_dataframes:
+#         pd.concat(load_dataframes, ignore_index=True).to_csv(output_file_path_load, index=False)
+
+#     if gen_dataframes:
+#         summed_gen_data = sum_across_psr_types(gen_dataframes)
+#         summed_gen_data.to_csv(output_file_path_gen, index=False)
+
+#     print(f"Data saved to {output_file_path_load}, {output_file_path_gen}")
+
+
+def process_all_files_in_folder(folder_path, output_file_path_load, output_file_path_gen):
     load_dataframes = []
     gen_dataframes = []
+    Green_psrTypes = ["b01", "b09", "b10", "b11", "b12", "b13", "b15", "b16", "b18", "b19"]
 
     for file in os.listdir(folder_path):
         if file.endswith('.csv'):
             data_type = file.split('_')[0].lower()
+            psr_type = file.split('_')[-1].split('.')[0].lower()
             try:
-                aggregated_data = process_file(file, folder_path)
                 if data_type == 'load':
+                    aggregated_data = process_file(file, folder_path)
                     load_dataframes.append(aggregated_data)
-                elif data_type == 'gen':
+                elif data_type == 'gen' and psr_type in Green_psrTypes:
+                    aggregated_data = process_file(file, folder_path)
                     gen_dataframes.append(aggregated_data)
             except ValueError as e:
                 print(f"Error processing {file}: {e}")
 
-    load_combined = pd.concat(load_dataframes, ignore_index=True)
-    gen_combined = pd.concat(gen_dataframes, ignore_index=True)
 
-    combined_dataframe = pd.concat([load_combined, gen_combined], axis=1)
-    combined_dataframe.to_csv(output_file_path, index=False)
-    print(f"Data saved to {output_file_path}")
+    if load_dataframes:
+        pd.concat(load_dataframes, ignore_index=True).to_csv(output_file_path_load, index=False)
+        print(f"Load data saved to {output_file_path_load}")
+
+    if gen_dataframes:
+        summed_gen_data = sum_across_psr_types(gen_dataframes)
+        summed_gen_data.to_csv(output_file_path_gen, index=False)
+        print(f"Generation data saved to {output_file_path_gen}")
 
