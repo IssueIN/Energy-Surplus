@@ -166,33 +166,6 @@ def process_file(filename, folder_path):
     df = aggregate_to_hourly(df, data_type)
     return df
 
-# def process_all_files_in_folder(folder_path, output_file_path_load, output_file_path_gen):
-#     load_dataframes = []
-#     gen_dataframes = []
-#     Green_psrTypes = ["B01", "B09", "B10", "B11", "B12", "B13", "B15", "B16", "B18", "B19"]
-
-#     for file in os.listdir(folder_path):
-#         if file.endswith('.csv'):
-#             data_type = file.split('_')[0].lower()
-#             try:
-#                 aggregated_data = process_file(file, folder_path)
-#                 if data_type == 'load':
-#                     load_dataframes.append(aggregated_data)
-#                 elif data_type == 'gen' and file.split('_')[-1].lower() in Green_psrTypes:
-#                     gen_dataframes.append(aggregated_data)
-#             except ValueError as e:
-#                 print(f"Error processing {file}: {e}")
-
-#     if load_dataframes:
-#         pd.concat(load_dataframes, ignore_index=True).to_csv(output_file_path_load, index=False)
-
-#     if gen_dataframes:
-#         summed_gen_data = sum_across_psr_types(gen_dataframes)
-#         summed_gen_data.to_csv(output_file_path_gen, index=False)
-
-#     print(f"Data saved to {output_file_path_load}, {output_file_path_gen}")
-
-
 def process_all_files_in_folder(folder_path, output_file_path_load, output_file_path_gen):
     load_dataframes = []
     gen_dataframes = []
@@ -221,4 +194,23 @@ def process_all_files_in_folder(folder_path, output_file_path_load, output_file_
         summed_gen_data = sum_across_psr_types(gen_dataframes)
         summed_gen_data.to_csv(output_file_path_gen, index=False)
         print(f"Generation data saved to {output_file_path_gen}")
+
+
+def remap(load_data_path, gen_data_path, output_file_path):
+
+    gen_df = pd.read_csv(gen_data_path)
+    load_df = pd.read_csv(load_data_path)
+    
+    gen_pivot = gen_df.pivot(index='StartTime', columns='Country', values='quantity')
+    gen_pivot.columns = [f'green_energy_{col}' for col in gen_pivot.columns]
+
+    load_pivot = load_df.pivot(index='StartTime', columns='Country', values='Load')
+    load_pivot.columns = [f'{col}_Load' for col in load_pivot.columns]
+
+    combined_df = pd.merge(gen_pivot, load_pivot, left_index=True, right_index=True, how='outer')
+
+    combined_df.reset_index(inplace=True)
+
+    combined_df.to_csv(output_file_path, index=False)
+
 
