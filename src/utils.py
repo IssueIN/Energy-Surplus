@@ -144,62 +144,7 @@ def sum_across_psr_types(gen_dataframes):
 
     return aggregated_gen_df
 
-
-def process_file(filename, folder_path):
-    data_type = filename.split('_')[0].lower()
-    if data_type == 'load':
-        country_code = Path(filename).stem.split('_')[-1]
-    elif data_type == 'gen':
-        country_code = Path(filename).stem.split('_')[1]
-    else:
-        raise ValueError("Invalid data type. Use 'load' or 'gen'.")
-
-    filepath = os.path.join(folder_path, filename)
-    df = pd.read_csv(filepath)
-
-    df['StartTime'] = pd.to_datetime(df['StartTime'], format='%Y-%m-%dT%H:%M+00:00Z')
-    df['EndTime'] = pd.to_datetime(df['EndTime'], format='%Y-%m-%dT%H:%M+00:00Z')
-
-    df['Country'] = country_code
-    df = df.drop(columns=['AreaID'])
-
-    df = aggregate_to_hourly(df, data_type)
-    return df
-
-def process_all_files_in_folder(folder_path, output_file_path_load, output_file_path_gen):
-    load_dataframes = []
-    gen_dataframes = []
-    Green_psrTypes = ["b01", "b09", "b10", "b11", "b12", "b13", "b15", "b16", "b18", "b19"]
-
-    for file in os.listdir(folder_path):
-        if file.endswith('.csv'):
-            data_type = file.split('_')[0].lower()
-            psr_type = file.split('_')[-1].split('.')[0].lower()
-            try:
-                if data_type == 'load':
-                    aggregated_data = process_file(file, folder_path)
-                    load_dataframes.append(aggregated_data)
-                elif data_type == 'gen' and psr_type in Green_psrTypes:
-                    aggregated_data = process_file(file, folder_path)
-                    gen_dataframes.append(aggregated_data)
-            except ValueError as e:
-                print(f"Error processing {file}: {e}")
-
-
-    if load_dataframes:
-        pd.concat(load_dataframes, ignore_index=True).to_csv(output_file_path_load, index=False)
-        print(f"Load data saved to {output_file_path_load}")
-
-    if gen_dataframes:
-        summed_gen_data = sum_across_psr_types(gen_dataframes)
-        summed_gen_data.to_csv(output_file_path_gen, index=False)
-        print(f"Generation data saved to {output_file_path_gen}")
-
-
-def remap(load_data_path, gen_data_path, output_file_path):
-
-    gen_df = pd.read_csv(gen_data_path)
-    load_df = pd.read_csv(load_data_path)
+def remap(gen_df, load_df):
     
     gen_pivot = gen_df.pivot(index='StartTime', columns='Country', values='quantity')
     gen_pivot.columns = [f'green_energy_{col}' for col in gen_pivot.columns]
@@ -211,6 +156,10 @@ def remap(load_data_path, gen_data_path, output_file_path):
 
     combined_df.reset_index(inplace=True)
 
-    combined_df.to_csv(output_file_path, index=False)
+    return combined_df
+
+
+
+
 
 

@@ -1,3 +1,5 @@
 .venv
 src/__pycache__/
 src/test/
+src/data_test.py
+src/model_test.py

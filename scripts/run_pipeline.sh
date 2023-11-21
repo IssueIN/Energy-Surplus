@@ -20,7 +20,7 @@ python src/data_ingestion.py --start_date="$start_date" --end_date="$end_date" -
 
 # Run data_processing.py
 echo "Starting data processing..."
-python src/data_processing.py --input_file="$raw_data_file" --output_file="$processed_data_file"
+python src/data_processing.py --input_file="$raw_data_file_folder" --output_file="$processed_data_file"
 
 # Run model_training.py
 echo "Starting model training..."
